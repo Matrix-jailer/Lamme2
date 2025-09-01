@@ -244,7 +244,7 @@ async def process_cc_list(cc_list, proxies):
                     user = user.replace("session-RANDOMID", f"session-{uuid.uuid4().hex}")
                 proxy_url = f"http://{user}:{pwd}@{host}:{port}"
                 session = httpx.AsyncClient(
-                    proxy=proxy_url,
+                    proxies=proxy_url,
                     timeout=httpx.Timeout(60.0),
                     trust_env=False,
                     follow_redirects=True,
