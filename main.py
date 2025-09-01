@@ -9,6 +9,7 @@ import uuid
 import re
 from flask import Flask, request, jsonify
 import os
+from urllib.parse import unquote
 
 app = Flask(__name__)
 
@@ -189,8 +190,11 @@ async def get_proxy_ip(session):
 # API ENDPOINTS
 # ---------------------------
 @app.route('/ccngate/<path:cc_data>', methods=['GET'])
-async def check_cc(cc_data):
+def check_cc(cc_data):
     try:
+        # Decode URL-encoded characters
+        cc_data = unquote(cc_data)
+        
         # Parse single or multiple CCs
         cc_list = cc_data.split(',')
         results = []
@@ -204,6 +208,31 @@ async def check_cc(cc_data):
         session = None
         proxy_url = None
         
+        # Run async function in sync context
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            results = loop.run_until_complete(process_cc_list(cc_list, proxies))
+        finally:
+            loop.close()
+        
+        return jsonify({
+            "total_checked": len(cc_list),
+            "results": results
+        })
+    
+    except Exception as e:
+        print(f"Error in check_cc: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+async def process_cc_list(cc_list, proxies):
+    results = []
+    PROXY_ROTATE_EVERY = 5
+    session = None
+    proxy_url = None
+    
+    try:
         for i, fullz in enumerate(cc_list):
             # Rotate proxy every N CCs
             if i % PROXY_ROTATE_EVERY == 0:
@@ -229,17 +258,12 @@ async def check_cc(cc_data):
             
             # Random delay to mimic human
             await asyncio.sleep(random.uniform(1.5, 3.5))
-        
+    
+    finally:
         if session:
             await session.aclose()
-        
-        return jsonify({
-            "total_checked": len(cc_list),
-            "results": results
-        })
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return results
 
 @app.route('/', methods=['GET'])
 def home():
